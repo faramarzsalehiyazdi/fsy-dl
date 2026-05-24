@@ -1,0 +1,41 @@
+- name: Download File
+        id: download
+        shell: bash
+        run: |
+          mkdir -p temp_dl
+
+          FILE_URL="${{ github.event.inputs.file_url }}"
+
+          # Extract filename from URL before query string
+          FILENAME=$(basename "${FILE_URL%%\?*}")
+          FILENAME=$(echo "$FILENAME" | sed 's/[^a-zA-Z0-9._() -]/_/g')
+
+          echo "Downloading: $FILENAME from $FILE_URL"
+
+          curl -L \
+            --retry 5 \
+            --retry-delay 3 \
+            --max-time 1800 \
+            --connect-timeout 30 \
+            -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" \
+            -e "https://web.telegram.org/" \
+            -o "temp_dl/$FILENAME" \
+            "$FILE_URL"
+
+          EXIT_CODE=$?
+          if [ $EXIT_CODE -ne 0 ]; then
+            echo "❌ curl failed with exit code $EXIT_CODE"
+            exit 1
+          fi
+
+          FILE_SIZE=$(stat -c%s "temp_dl/$FILENAME")
+          echo "✅ Downloaded: $FILENAME ($FILE_SIZE bytes)"
+
+          if [ "$FILE_SIZE" -lt 1024 ]; then
+            echo "⚠️ File is suspiciously small, dumping contents:"
+            cat "temp_dl/$FILENAME"
+            exit 1
+          fi
+
+          echo "filename=$FILENAME" >> "$GITHUB_OUTPUT"
+          echo "filepath=temp_dl/$FILENAME" >> "$GITHUB_OUTPUT"
